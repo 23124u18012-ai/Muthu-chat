@@ -53,12 +53,10 @@
 const firebaseConfig = {
   apiKey: "AIzaSyDcPgVkmf_5_CrCZ0RpsmMh2-7OGawQ9Tk",
   authDomain: "message-4174f.firebaseapp.com",
-  databaseURL: "https://message-4174f-default-rtdb.firebaseio.com",
   projectId: "message-4174f",
   storageBucket: "message-4174f.firebasestorage.app",
   messagingSenderId: "298958978168",
-  appId: "1:298958978168:web:2b8fd81e9d1b2c7ebd418d",
-  measurementId: "G-T11QRYT1NP"
+  appId: "1:298958978168:web:2b8fd81e9d1b2c7ebd418d"
 };
 
 firebase.initializeApp(firebaseConfig);
@@ -70,23 +68,30 @@ const storage = firebase.storage();
 let myName = localStorage.getItem("myName");
 let currentRoom = null;
 
-// SAVE NAME
+// SAVE NAME (Continue Button)
 function saveName() {
   const name = displayName.value.trim();
   if (!name) return alert("Enter name");
 
   localStorage.setItem("myName", name);
   myName = name;
-  startLogin();
+
+  auth.signInAnonymously()
+    .then(() => {
+      nameBox.style.display = "none";
+      chatBox.style.display = "block";
+      loadRooms();
+    })
+    .catch(err => {
+      alert("Firebase Auth Error: " + err.message);
+      console.log(err);
+    });
 }
 
 // AUTO LOGIN IF NAME EXISTS
-if (myName) startLogin();
-
-function startLogin() {
-  nameBox.style.display = "none";
-
+if (myName) {
   auth.signInAnonymously().then(() => {
+    nameBox.style.display = "none";
     chatBox.style.display = "block";
     loadRooms();
   });
@@ -146,7 +151,7 @@ async function sendMessage() {
   typing(false);
 }
 
-// LISTEN MESSAGES
+// LISTEN TO MESSAGES
 function listenMessages() {
   db.collection("messages")
     .where("roomId", "==", currentRoom)
