@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Muthu Chat – User</title>
+
+<style>
+  body { background:#0b141a; color:white; font-family:Arial; padding:15px; }
+  .box { background:#111; padding:15px; border-radius:10px; margin-bottom:15px; }
+  input, button, select { padding:10px; margin:6px; border:none; border-radius:6px; }
+  button { background:#25d366; color:black; font-weight:bold; cursor:pointer; }
+  #messages { background:black; padding:10px; height:300px; overflow-y:auto; border-radius:10px; }
+  .typing { color:#25d366; font-style:italic; }
+</style>
+</head>
+<body>
+
+<h2>🔥 Muthu Chat</h2>
+
+<!-- USERNAME SETUP -->
+<div id="nameBox" class="box">
+  <h3>Enter your name</h3>
+  <input id="displayName" placeholder="Your name">
+  <button onclick="saveName()">Continue</button>
+</div>
+
+<!-- CHAT APP -->
+<div id="chatBox" class="box" style="display:none;">
+
+  <select id="roomSelect" onchange="switchRoom(this.value)"></select>
+  <button onclick="createRoom()">+ Create</button>
+
+  <h3 id="roomName"></h3>
+  <div id="typingIndicator" class="typing"></div>
+
+  <div id="messages"></div>
+
+  <input id="msgInput" placeholder="Type..." style="width:70%;" oninput="typingEvent()">
+  <button onclick="sendMessage()">Send</button>
+  <br><br>
+  <input type="file" id="fileInput" onchange="sendFile()">
+
+</div>
+
+<!-- FIREBASE -->
+<script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-storage.js"></script>
+
+<script>
+// FIREBASE CONFIG
+const firebaseConfig = {
+  apiKey: "AIzaSyDcPgVkmf_5_CrCZ0RpsmMh2-7OGawQ9Tk",
+  authDomain: "message-4174f.firebaseapp.com",
+  databaseURL: "https://message-4174f-default-rtdb.firebaseio.com",
+  projectId: "message-4174f",
+  storageBucket: "message-4174f.firebasestorage.app",
+  messagingSenderId: "298958978168",
+  appId: "1:298958978168:web:2b8fd81e9d1b2c7ebd418d",
+  measurementId: "G-T11QRYT1NP"
+};
+
+firebase.initializeApp(firebaseConfig);
+
+const auth = firebase.auth();
+const db = firebase.firestore();
+const storage = firebase.storage();
+
+let myName = localStorage.getItem("myName");
+let currentRoom = null;
+
+// SAVE NAME
+function saveName() {
+  const name = displayName.value.trim();
+  if (!name) return alert("Enter name");
+
+  localStorage.setItem("myName", name);
+  myName = name;
+  startLogin();
+}
+
+// AUTO LOGIN IF NAME EXISTS
+if (myName) startLogin();
+
+function startLogin() {
+  nameBox.style.display = "none";
+
+  auth.signInAnonymously().then(() => {
+    chatBox.style.display = "block";
+    loadRooms();
+  });
+}
+
+// LOAD ROOMS
+async function loadRooms() {
+  let snap = await db.collection("rooms").get();
+  roomSelect.innerHTML = "";
+
+  if (snap.size === 0) {
+    await db.collection("rooms").add({ name: "General", createdAt: Date.now() });
+    return loadRooms();
+  }
+
+  snap.forEach(d => {
+    let op = document.createElement("option");
+    op.value = d.id;
+    op.textContent = d.data().name;
+    roomSelect.appendChild(op);
+  });
+
+  switchRoom(roomSelect.value);
+}
+
+// CREATE ROOM
+async function createRoom() {
+  let name = prompt("Room name:");
+  if (!name) return;
+  await db.collection("rooms").add({ name, createdAt: Date.now() });
+  loadRooms();
+}
+
+// SWITCH ROOM
+function switchRoom(id) {
+  currentRoom = id;
+  roomName.textContent = roomSelect.options[roomSelect.selectedIndex].text;
+
+  listenMessages();
+  listenTyping();
+}
+
+// SEND MESSAGE
+async function sendMessage() {
+  const text = msgInput.value.trim();
+  if (!text) return;
+  msgInput.value = "";
+
+  await db.collection("messages").add({
+    roomId: currentRoom,
+    name: myName,
+    text,
+    type: "text",
+    time: Date.now()
+  });
+
+  typing(false);
+}
+
+// LISTEN MESSAGES
+function listenMessages() {
+  db.collection("messages")
+    .where("roomId", "==", currentRoom)
+    .orderBy("time")
+    .onSnapshot(snap => {
+      messages.innerHTML = "";
+      snap.forEach(doc => {
+        let m = doc.data();
+        messages.innerHTML += `<p><b>${m.name}</b>: ${m.text}</p>`;
+      });
+      messages.scrollTop = messages.scrollHeight;
+    });
+}
+
+// FILE UPLOAD
+async function sendFile() {
+  let file = fileInput.files[0];
+  if (!file) return;
+
+  let ref = storage.ref("upload/" + Date.now() + "_" + file.name);
+  await ref.put(file);
+  let url = await ref.getDownloadURL();
+
+  await db.collection("messages").add({
+    roomId: currentRoom,
+    name: myName,
+    text: url,
+    type: "file",
+    time: Date.now()
+  });
+}
+
+// TYPING
+let typingTimeout;
+
+function typingEvent() {
+  typing(true);
+  clearTimeout(typingTimeout);
+  typingTimeout = setTimeout(() => typing(false), 1000);
+}
+
+function typing(state) {
+  db.collection("typing").doc(currentRoom)
+    .set({ [myName]: state }, { merge: true });
+}
+
+function listenTyping() {
+  db.collection("typing").doc(currentRoom)
+    .onSnapshot(doc => {
+      let data = doc.data() || {};
+      let others = Object.keys(data).filter(x => x !== myName && data[x]);
+      typingIndicator.textContent = others.length ? `${others[0]} is typing...` : "";
+    });
+}
+</script>
+
+</body>
+</html>

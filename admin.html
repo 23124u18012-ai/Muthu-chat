@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Muthu Chat – Admin</title>
+
+<style>
+  body { background:#0b141a; color:white; font-family:Arial; padding:15px; }
+  .box { background:#111; padding:15px; border-radius:10px; margin-bottom:15px; }
+  input, button { padding:10px; margin:6px; border:none; border-radius:6px; }
+  button { background:#25d366; color:black; font-weight:bold; cursor:pointer; }
+  .danger { background:#ff3b30; }
+</style>
+</head>
+<body>
+
+<h2>🔥 Muthu Chat – Admin Panel</h2>
+
+<!-- ADMIN LOGIN -->
+<div id="codeBox" class="box">
+  <h3>Enter Admin Code</h3>
+  <input id="adminCodeInput" placeholder="Admin Code">
+  <button onclick="checkCode()">Enter</button>
+</div>
+
+<!-- PANEL -->
+<div id="adminPanel" class="box" style="display:none;">
+  <h3>Messages</h3>
+  <div id="messages"></div>
+
+  <button class="danger" onclick="deleteAllMessages()">Delete ALL Messages</button>
+
+  <h3>Rooms</h3>
+  <div id="rooms"></div>
+
+  <button class="danger" onclick="deleteAllRooms()">Delete ALL Rooms</button>
+</div>
+
+<!-- Firebase -->
+<script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js"></script>
+
+<script>
+// SECRET CODE
+const SECRET = "MUTHU999";
+
+// CHECK CODE
+function checkCode(){
+  if(adminCodeInput.value === SECRET){
+    codeBox.style.display = "none";
+   adminPanel.style.display = "block";
+    loadMessages();
+    loadRooms();
+  } else alert("Wrong code!");
+}
+
+// FIREBASE CONFIG
+const firebaseConfig = {
+  apiKey: "AIzaSyDcPgVkmf_5_CrCZ0RpsmMh2-7OGawQ9Tk",
+  authDomain: "message-4174f.firebaseapp.com",
+  databaseURL: "https://message-4174f-default-rtdb.firebaseio.com",
+  projectId: "message-4174f",
+  storageBucket: "message-4174f.firebasestorage.app",
+  messagingSenderId: "298958978168",
+  appId: "1:298958978168:web:2b8fd81e9d1b2c7ebd418d",
+  measurementId: "G-T11QRYT1NP"
+};
+firebase.initializeApp(firebaseConfig);
+
+const db = firebase.firestore();
+
+// LOAD MESSAGES
+function loadMessages(){
+  db.collection("messages").orderBy("time")
+  .onSnapshot(snap=>{
+    messages.innerHTML = "";
+    snap.forEach(doc=>{
+      const m = doc.data();
+      messages.innerHTML += `<p><b>${m.name}</b>: ${m.text}
+      <button class='danger' onclick="deleteMessage('${doc.id}')">Delete</button></p>`;
+    });
+  });
+}
+
+function deleteMessage(id){
+  db.collection("messages").doc(id).delete();
+}
+
+// LOAD ROOMS
+function loadRooms(){
+  db.collection("rooms").get().then(snap=>{
+    rooms.innerHTML = "";
+    snap.forEach(doc=>{
+      rooms.innerHTML += `<p>Room: ${doc.data().name}
+      <button class='danger' onclick="deleteRoom('${doc.id}')">Delete</button></p>`;
+    });
+  });
+}
+
+function deleteRoom(id){
+  db.collection("rooms").doc(id).delete();
+}
+
+function deleteAllMessages(){
+  if(!confirm("Delete ALL messages?")) return;
+  db.collection("messages").get().then(snap=>{
+    snap.forEach(doc=>doc.ref.delete());
+  });
+}
+
+function deleteAllRooms(){
+  if(!confirm("Delete ALL rooms?")) return;
+  db.collection("rooms").get().then(snap=>{
+    snap.forEach(doc=>doc.ref.delete());
+  });
+}
+</script>
+
+</body>
+</html>
